@@ -1,0 +1,210 @@
+{
+  "entities": {
+    "UserPublic": {
+      "title": "UserPublic",
+      "description": "Public profile of a Dem Don Pay user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["employee", "org_representative", "moderator", "admin"] },
+        "country": { "type": "string", "maxLength": 50 },
+        "bio": { "type": "string", "maxLength": 250 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "displayName", "role", "country", "createdAt"]
+    },
+    "UserPrivate": {
+      "title": "UserPrivate",
+      "description": "Private contact and sensitive data of a user, isolated from public view",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "emailNotifications": { "type": "boolean" },
+        "pushNotifications": { "type": "boolean" },
+        "digestFrequency": { "type": "string", "enum": ["immediate", "daily", "weekly", "none"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "updatedAt"]
+    },
+    "Organisation": {
+      "title": "Organisation",
+      "description": "Public profile of an employer, ministry, agency, or corporation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 150 },
+        "acronym": { "type": "string", "maxLength": 50 },
+        "sector": { "type": "string", "enum": ["public", "private"] },
+        "industry": { "type": "string", "maxLength": 100 },
+        "country": { "type": "string", "maxLength": 50 },
+        "website": { "type": "string", "maxLength": 200 },
+        "contactEmail": { "type": "string", "maxLength": 150 },
+        "isVerifiedOnDdP": { "type": "boolean" },
+        "verificationStatus": { "type": "string", "enum": ["unclaimed", "pending", "verified"] },
+        "verifiedRepUid": { "type": "string", "maxLength": 128 },
+        "followerCount": { "type": "number" },
+        "totalReportsCount": { "type": "number" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "sector", "industry", "country", "isVerifiedOnDdP", "verificationStatus", "createdAt", "createdBy"]
+    },
+    "SalaryReport": {
+      "title": "SalaryReport",
+      "description": "Employee submitted personal salary receipt experience",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "orgId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userDisplayName": { "type": "string", "maxLength": 100 },
+        "payrollPeriod": { "type": "string", "maxLength": 20 },
+        "status": { "type": "string", "enum": ["salary_received", "salary_not_received", "partial_payment"] },
+        "partialPercentage": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 500 },
+        "sourceType": { "type": "string", "enum": ["employee_reported"] },
+        "isDisputed": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "orgId", "userId", "userDisplayName", "payrollPeriod", "status", "sourceType", "createdAt"]
+    },
+    "OfficialAnnouncement": {
+      "title": "OfficialAnnouncement",
+      "description": "Official company or government circular published by verified representative or administrator",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "orgId": { "type": "string", "maxLength": 128 },
+        "orgName": { "type": "string", "maxLength": 150 },
+        "publisherUid": { "type": "string", "maxLength": 128 },
+        "publisherName": { "type": "string", "maxLength": 100 },
+        "publisherRole": { "type": "string", "maxLength": 50 },
+        "payrollPeriod": { "type": "string", "maxLength": 20 },
+        "title": { "type": "string", "maxLength": 200 },
+        "circularNumber": { "type": "string", "maxLength": 100 },
+        "status": { "type": "string", "enum": ["official_payment_announcement", "salary_expected", "disputed_by_moderator"] },
+        "content": { "type": "string", "maxLength": 2000 },
+        "isOfficial": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "orgId", "orgName", "publisherUid", "payrollPeriod", "title", "status", "content", "isOfficial", "createdAt"]
+    },
+    "RepVerificationRequest": {
+      "title": "RepVerificationRequest",
+      "description": "Application from a company representative requesting verified credentials",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "orgId": { "type": "string", "maxLength": 128 },
+        "applicantUid": { "type": "string", "maxLength": 128 },
+        "applicantName": { "type": "string", "maxLength": 100 },
+        "officialWorkEmail": { "type": "string", "maxLength": 150 },
+        "cacNumberOrGovId": { "type": "string", "maxLength": 100 },
+        "jobTitle": { "type": "string", "maxLength": 100 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "reviewedBy": { "type": "string", "maxLength": 128 },
+        "reviewedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "orgId", "applicantUid", "applicantName", "officialWorkEmail", "jobTitle", "status", "createdAt"]
+    },
+    "CommunityMessage": {
+      "title": "CommunityMessage",
+      "description": "Discussion post in employee community, company-employee room, or payday forum",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "roomType": { "type": "string", "enum": ["employee_community", "company_employee", "general_payday"] },
+        "orgId": { "type": "string", "maxLength": 128 },
+        "topic": { "type": "string", "maxLength": 100 },
+        "senderUid": { "type": "string", "maxLength": 128 },
+        "senderDisplayName": { "type": "string", "maxLength": 100 },
+        "senderRoleBadge": { "type": "string", "enum": ["employee", "verified_rep", "moderator", "admin"] },
+        "content": { "type": "string", "maxLength": 1000 },
+        "isFlagged": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "roomType", "senderUid", "senderDisplayName", "content", "createdAt"]
+    },
+    "ModerationReport": {
+      "title": "ModerationReport",
+      "description": "User flag on suspected prank, impersonation, or abuse",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "targetType": { "type": "string", "enum": ["salary_report", "official_announcement", "community_message", "organisation"] },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "reporterUid": { "type": "string", "maxLength": 128 },
+        "reason": { "type": "string", "enum": ["suspected_prank", "impersonation", "false_claim", "harassment", "other"] },
+        "description": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["pending", "investigating", "resolved", "dismissed"] },
+        "actionTaken": { "type": "string", "maxLength": 200 },
+        "moderatorNotes": { "type": "string", "maxLength": 500 },
+        "resolvedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "targetType", "targetId", "reporterUid", "reason", "description", "status", "createdAt"]
+    },
+    "ModerationLog": {
+      "title": "ModerationLog",
+      "description": "Auditable log of disciplinary or moderation actions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 100 },
+        "targetType": { "type": "string", "maxLength": 50 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "moderatorUid": { "type": "string", "maxLength": 128 },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "action", "targetType", "targetId", "moderatorUid", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserPublic" },
+      "description": "Public user profiles"
+    },
+    "/users/{userId}/private/info": {
+      "schema": { "$ref": "#/entities/UserPrivate" },
+      "description": "Private contact info and notification preferences, only readable by owner"
+    },
+    "/organisations/{orgId}": {
+      "schema": { "$ref": "#/entities/Organisation" },
+      "description": "Organisation directory documents"
+    },
+    "/salary_reports/{reportId}": {
+      "schema": { "$ref": "#/entities/SalaryReport" },
+      "description": "Crowdsourced employee salary receipts"
+    },
+    "/official_announcements/{announcementId}": {
+      "schema": { "$ref": "#/entities/OfficialAnnouncement" },
+      "description": "Official company and government payment announcements"
+    },
+    "/rep_verifications/{verificationId}": {
+      "schema": { "$ref": "#/entities/RepVerificationRequest" },
+      "description": "Company representative verification applications"
+    },
+    "/community_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/CommunityMessage" },
+      "description": "Employee community, company chat, and payday forum messages"
+    },
+    "/moderation_reports/{reportId}": {
+      "schema": { "$ref": "#/entities/ModerationReport" },
+      "description": "Flags on suspected pranks and false information"
+    },
+    "/moderation_logs/{logId}": {
+      "schema": { "$ref": "#/entities/ModerationLog" },
+      "description": "Auditable log of moderator actions"
+    }
+  }
+}

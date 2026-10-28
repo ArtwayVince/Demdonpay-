@@ -1,0 +1,6 @@
+{
+  "name": "Dem Don Pay (DdP)",
+  "description": "Nigerian employee community and salary status tracking platform to verify official payment announcements and crowdsourced salary receipts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

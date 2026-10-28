@@ -1,0 +1,213 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'demdonpay@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+    function isModerator() {
+      return isAdmin() || (
+        isSignedIn() && exists(/databases/$(database)/documents/moderators/$(request.auth.uid))
+      );
+    }
+    function isVerifiedOrgRep(orgId) {
+      return isSignedIn() && (
+        isAdmin() ||
+        (
+          exists(/databases/$(database)/documents/organisations/$(orgId)) &&
+          get(/databases/$(database)/documents/organisations/$(orgId)).data.isVerifiedOnDdP == true &&
+          get(/databases/$(database)/documents/organisations/$(orgId)).data.verifiedRepUid == request.auth.uid
+        )
+      );
+    }
+
+    // Diagnostic & Connection test document
+    match /test/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Role lookups
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /moderators/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // 1. Users Public Profile
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId
+        && incoming().keys().hasAll(['id', 'displayName', 'role', 'country', 'createdAt'])
+        && incoming().id == userId
+        && incoming().displayName is string && incoming().displayName.size() <= 100
+        && (incoming().role == 'employee' || (isAdmin() && incoming().role in ['org_representative', 'moderator', 'admin']))
+        && incoming().country is string && incoming().country.size() <= 50;
+      
+      allow update: if isSignedIn() && (
+        isAdmin() || (
+          request.auth.uid == userId
+          && incoming().id == userId
+          && incoming().role == existing().role
+          && incoming().displayName is string && incoming().displayName.size() <= 100
+        )
+      );
+      allow delete: if isAdmin();
+
+      // PII Split Subcollection: strictly isolated to the user and admin
+      match /private/{infoDoc} {
+        allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      }
+    }
+
+    // 2. Organisations Directory
+    match /organisations/{orgId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(orgId)
+        && incoming().keys().hasAll(['id', 'name', 'sector', 'industry', 'country', 'isVerifiedOnDdP', 'verificationStatus', 'createdAt', 'createdBy'])
+        && incoming().id == orgId
+        && incoming().name is string && incoming().name.size() <= 150
+        && incoming().sector in ['public', 'private']
+        && incoming().createdBy == request.auth.uid
+        && (isAdmin() || (incoming().isVerifiedOnDdP == false && incoming().verificationStatus == 'unclaimed'));
+
+      allow update: if isSignedIn() && isValidId(orgId) && (
+        isAdmin() || (
+          isVerifiedOrgRep(orgId)
+          && incoming().id == existing().id
+          && incoming().createdBy == existing().createdBy
+          && incoming().isVerifiedOnDdP == existing().isVerifiedOnDdP
+        ) || (
+          incoming().diff(existing()).affectedKeys().hasOnly(['followerCount', 'totalReportsCount', 'updatedAt'])
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 3. Salary Reports (Crowdsourced employee personal reports)
+    match /salary_reports/{reportId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(reportId)
+        && incoming().keys().hasAll(['id', 'orgId', 'userId', 'userDisplayName', 'payrollPeriod', 'status', 'sourceType', 'createdAt'])
+        && incoming().id == reportId
+        && incoming().userId == request.auth.uid
+        && incoming().sourceType == 'employee_reported'
+        && incoming().status in ['salary_received', 'salary_not_received', 'partial_payment']
+        && incoming().notes is string && incoming().notes.size() <= 500;
+
+      allow update: if isSignedIn() && isValidId(reportId) && (
+        isAdmin() || isModerator() || (
+          request.auth.uid == existing().userId
+          && incoming().id == existing().id
+          && incoming().userId == existing().userId
+          && incoming().sourceType == 'employee_reported'
+        )
+      );
+      allow delete: if isSignedIn() && isValidId(reportId) && (
+        isAdmin() || isModerator() || request.auth.uid == existing().userId
+      );
+    }
+
+    // 4. Official Payment Announcements (Strictly Verified Org Reps or Admin)
+    match /official_announcements/{announcementId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(announcementId)
+        && incoming().keys().hasAll(['id', 'orgId', 'orgName', 'publisherUid', 'payrollPeriod', 'title', 'status', 'content', 'isOfficial', 'createdAt'])
+        && incoming().id == announcementId
+        && incoming().isOfficial == true
+        && incoming().status in ['official_payment_announcement', 'salary_expected', 'disputed_by_moderator']
+        && (isAdmin() || (isVerifiedOrgRep(incoming().orgId) && incoming().publisherUid == request.auth.uid));
+
+      allow update: if isSignedIn() && isValidId(announcementId) && (
+        isAdmin() || (
+          isVerifiedOrgRep(existing().orgId)
+          && existing().publisherUid == request.auth.uid
+          && incoming().publisherUid == existing().publisherUid
+          && incoming().orgId == existing().orgId
+        ) || (
+          isModerator() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+        )
+      );
+      allow delete: if isAdmin() || isModerator();
+    }
+
+    // 5. Representative Verification Requests
+    match /rep_verifications/{verificationId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || isModerator() || resource.data.applicantUid == request.auth.uid
+      );
+      allow create: if isSignedIn() && isValidId(verificationId)
+        && incoming().keys().hasAll(['id', 'orgId', 'applicantUid', 'applicantName', 'officialWorkEmail', 'jobTitle', 'status', 'createdAt'])
+        && incoming().id == verificationId
+        && incoming().applicantUid == request.auth.uid
+        && incoming().status == 'pending';
+      allow update: if isSignedIn() && (isAdmin() || isModerator());
+      allow delete: if isAdmin();
+    }
+
+    // 6. Community Messages
+    match /community_messages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(messageId)
+        && incoming().keys().hasAll(['id', 'roomType', 'senderUid', 'senderDisplayName', 'content', 'createdAt'])
+        && incoming().id == messageId
+        && incoming().senderUid == request.auth.uid
+        && incoming().content is string && incoming().content.size() <= 1000
+        && (incoming().senderRoleBadge == 'employee' || isAdmin() || isModerator() || (incoming().orgId != null && isVerifiedOrgRep(incoming().orgId)));
+
+      allow update: if isSignedIn() && isValidId(messageId) && (
+        isAdmin() || isModerator() || (
+          request.auth.uid == existing().senderUid
+          && incoming().diff(existing()).affectedKeys().hasOnly(['content', 'updatedAt'])
+        )
+      );
+      allow delete: if isAdmin() || isModerator() || request.auth.uid == existing().senderUid;
+    }
+
+    // 7. Moderation Reports (Anti-prank & abuse flags)
+    match /moderation_reports/{reportId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || isModerator() || resource.data.reporterUid == request.auth.uid
+      );
+      allow create: if isSignedIn() && isValidId(reportId)
+        && incoming().keys().hasAll(['id', 'targetType', 'targetId', 'reporterUid', 'reason', 'description', 'status', 'createdAt'])
+        && incoming().id == reportId
+        && incoming().reporterUid == request.auth.uid
+        && incoming().status == 'pending';
+      allow update: if isSignedIn() && (isAdmin() || isModerator());
+      allow delete: if isAdmin();
+    }
+
+    // 8. Moderation Logs (Immutable Audit Trails)
+    match /moderation_logs/{logId} {
+      allow read: if isSignedIn() && (isAdmin() || isModerator());
+      allow create: if isSignedIn() && isValidId(logId) && (isAdmin() || isModerator())
+        && incoming().moderatorUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}
